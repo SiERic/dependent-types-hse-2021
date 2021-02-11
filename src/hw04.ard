@@ -1,0 +1,104 @@
+\import Utils
+\import lect03 (+-comm)
+\import lect04 (Nat-elim, Nat-rec, v++-assoc)
+
+\open Nat \hiding (<=)
+
+-- 1. Определите факториал через Nat-rec.
+
+\func factorial (n : Nat) : Nat =>
+  Nat-rec Nat 1 (\lam n res => res * (suc n)) n
+
+\func testFac : (factorial 5) = 120 => idp
+
+-- 2. Докажите ассоциативность сложения для натуральных чисел через Nat-elim.
+
+\func +-assoc (x y z : Nat) : (x + y) + z = x + (y + z) =>
+  Nat-elim (\lam z => (x + y) + z = x + (y + z)) idp (\lam z p => pmap suc p) z
+
+-- 3. Определите рекурсор и элиминатор для D.
+
+\data D
+  | con1 Nat
+  | con2 D D
+  | con3 (Nat -> D)
+
+\func D-elim (P : D -> \Type)
+             (c1 : \Pi (n : Nat) -> P (con1 n))
+             (c2 : \Pi (d1 d2 : D) -> P d1 -> P d2 -> P (con2 d1 d2))
+             (c3 : \Pi (f : Nat -> D) -> (\Pi (n : Nat) -> P (f n)) -> P (con3 f))
+             (d : D) : P d \elim d
+  | con1 n => c1 n
+  | con2 d1 d2 => c2 d1 d2 (D-elim P c1 c2 c3 d1) (D-elim P c1 c2 c3 d2)
+  | con3 f => c3 f (\lam n => D-elim P c1 c2 c3 (f n))
+
+\func D-rec (P : \Type)
+            (c1 : Nat -> P)
+            (c2 : D -> D -> P -> P -> P)
+            (c3 : (Nat -> D) -> (Nat -> P) -> P)
+            (d : D) : P
+  => D-elim (\lam _ => P) c1 c2 c3 d
+
+-- 4. Определите рекурсор и элиминатор для List.
+
+\func List-elim {A : \Type}
+                (P : List A -> \Type)
+                (n : P nil)
+                (c : \Pi (x : A) (xs : List A) -> P xs -> P (cons x xs))
+                (l : List A) : P l \elim l
+  | nil => n
+  | cons x xs => c x xs (List-elim P n c xs)
+
+\func List-rec {A : \Type}
+               (P : \Type)
+               (n : P)
+               (c : A -> List A -> P -> P)
+               (l : List A) : P
+  => List-elim (\lam _ => P) n c l
+
+-- 5. Докажите pmap при помощи паттерн матчинга с idp.
+
+\func pmap {A B : \Type} (f : A -> B) {a a' : A} (p : a = a') : f a = f a'
+  | f, idp => idp
+
+-- Optional:
+-- 6. У оператора J есть другая форма, которую мы будем называть Jalt. Докажите, что J и Jalt эквивалентны, то есть выразите одно через другое и наоборот.
+
+-- Выразите Jalt через J. Можно пользоваться только J, idp и всем, что через них выражается.
+
+\func Jalt {A : \Type}
+           (B : \Pi (a a' : A) -> a = a' -> \Type)
+           (b : \Pi (a : A) -> B a a idp)
+           {a a' : A}
+           (p : a = a') : B a a' p => J (B a) (b a) p
+
+-- Выразите J через Jalt. Можно пользоваться только Jalt, idp и всем, что через них выражается.
+-- Hint:
+-- a. Выразите transport через Jalt.
+-- b. Докажите, что тип \Sigma (x : A) (a = x) одноэлементный, то есть, что для любого p : \Sigma (x : A) (a = x) верно, что (x,idp) = p.
+-- c. Используя эти две конструкции, легко определить J.
+
+\func transport'' {A : \Type} (B : A -> \Type) {a a' : A} (p : a = a') (b : B a) : B a' => {?}
+
+\func sigma-contr {A : \Type} {a : A} (p : \Sigma (x : A) (a = x)) : (a,idp) = {\Sigma (x : A) (a = x)} p => {?}
+
+\func J' {A : \Type} {a : A} (B : \Pi (a' : A) -> a = a' -> \Type)
+         (b : B a idp)
+         {a' : A} (p : a = a') : B a' p => {?}
+
+-- 7. Докажите, что vnil является нейтральным элементом для v++.
+
+\func vnil-rightId {A : \Type} {n : Nat} (xs : Vec A n) : transport (Vec A) (+-comm 0 n) (xs v++ vnil) = xs
+  \elim n, xs
+    | 0, vnil => idp
+    | suc n, vcons a xs => v++-assoc.vcons-lem (+-comm 0 n) (xs v++ vnil) a *>
+      pmap (vcons a) (vnil-rightId xs)
+
+-- 8. Докажите, что 0 не равно suc x, не используя паттерн матчинг на равенстве.
+
+\func TNat (n : Nat) : \Type
+  | 0 => \Sigma
+  | suc n => Empty
+
+\func zero/=suc (x : Nat) (p : 0 = suc x) : Empty =>
+  transport TNat p ()
