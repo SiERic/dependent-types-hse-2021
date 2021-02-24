@@ -1,0 +1,88 @@
+\import Utils
+\import hw01 (gcd)
+\import lect02 (==)
+\import lect06
+\open Nat(+)
+
+-- 1. Определите функцию swap несколькими способами.
+
+-- При помощи \cowith и доступа к полям.
+\func swap {A B : \Type} (p : Pair A B) : Pair B A \cowith
+  | fst_ => p.snd_
+  | snd_ => p.fst_
+
+-- При помощи \new и паттерн матчинга.
+\func swap' {A B : \Type} (p : Pair A B) : Pair B A \elim p
+  | (a,b) => \new Pair { | fst_ => b | snd_ => a }
+
+-- При помощи \new и доступа к полям.
+\func swap'' {A B : \Type} (p : Pair A B) : Pair B A =>
+  \new Pair { | fst_ => p.snd_ | snd_ => p.fst_ }
+
+-- 2. Докажите, что swap (swap p) = p.
+
+\func swap-involutive {A B : \Type} (p : Pair A B) : swap (swap p) = p => idp
+
+-- 3. Докажите, что тип PosNat 0 пустой, а тип PosNat 1 нет.
+
+\func zero-isNotPos (p : PosNat 0) : Empty =>
+  p.p
+
+\func one-isPos : PosNat 1 => \new PosNat 1 ()
+
+-- 4. Определите \record, состоящий из пар взаимно простых натуральных чисел.
+--    Определите тип, состоящий из натуральных чисел, взаимно простых с 60.
+
+\record CoprimeNat (n m : Nat) (p : gcd n m = 1)
+
+\func CoprimeWith60 => CoprimeNat 60
+
+-- 5. Закончите определение класса монад. Этот класс должен содержать все монадные законы и реализовывать все поля из класса функторов.
+
+\class Monad \extends Functor
+  | return {A : \Type} : A -> F A
+  | \infixl 1 >>= {A B : \Type} : F A -> (A -> F B) -> F B
+  | left-id {A B : \Type} (a : A) (f : A -> F B) : ((return a) >>= f) = f a
+  | right-id {A : \Type} (m : F A) : (m >>= return) = m
+  | >>=-assoc {A B C : \Type} (f : A -> F B) (g : B -> F C) (m : F A) : ((m >>= f) >>= g) = (m >>= (\lam x => (f x) >>= g))
+  | fmap {A B : \Type} (f : A -> B) (x : F A)
+--  : F A -> F B
+    => x >>= (\lam x => return (f x))
+  | fmap-id {A : \Type} (y : F A)
+--  : fmap (\lam (x : A) => x) y = y
+    => right-id y
+  | fmap-comp {A B C : \Type} (f : A -> B) (g : B -> C) (y : F A) =>
+--  : fmap (\lam x => g (f x)) y = fmap g (fmap f y)
+    sym (
+      (fmap f y >>= (\lam x => return (g x)))                                       ==< idp >==
+      ((y >>= (\lam x => return (f x))) >>= (\lam x => return (g x)))               ==< >>=-assoc (\lam x => return (f x)) (\lam x => return (g x)) y >==
+      (y >>= (\lam x => ((\lam x => return (f x)) x) >>= (\lam x => return (g x)))) ==< idp >==
+      (y >>= (\lam x => (return (f x)) >>= (\lam x => return (g x))))               ==< pmap (y >>=) (path (\lam i a => (\lam x => (left-id (f x) (\lam x => return (g x)))) a @ i)) >==
+      (y >>= (\lam x => return (g (f x)))) `qed
+    )
+
+-- 6. Определите \instance Monad для Maybe.
+
+\instance MaybeMonad : Monad Maybe
+  | return {A : \Type} (a : A) => just a
+  | >>= {A B : \Type} (m : Maybe A) (f : A -> Maybe B) : Maybe B \elim m {
+    | nothing => nothing
+    | just a => f a
+  }
+  | left-id {A B : \Type} (a : A) (f : A -> Maybe B) => idp
+  | right-id {A : \Type} (m : Maybe A) => \case \elim m \with {
+    | nothing => idp
+    | just a => idp
+  }
+  | >>=-assoc {A B C : \Type} (f : A -> Maybe B) (g : B -> Maybe C) (m : Maybe A) => \case \elim m \with {
+    | nothing => idp
+    | just a => idp
+  }
+
+-- 7. Определите \instance Monad для State и State'.
+
+\record State (S A : \Type)
+  | state : S -> \Sigma S A
+
+\data State' (S A : \Type)
+  | state' (S -> \Sigma S A)
