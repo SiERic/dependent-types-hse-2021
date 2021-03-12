@@ -1,0 +1,167 @@
+\import Algebra.Meta
+\import Data.List
+\import Data.Or
+\import Logic.Meta
+\import Meta
+\import Order.LinearOrder
+\import Paths.Meta
+\import Utils (*>, <->, Maybe, just, maybe, nothing, pmap, sym)
+\import hw04 (factorial)
+\import lect04 (Nat-elim, Nat-rec)
+\import lect07(Decide)
+\import lect08
+\open LinearOrder
+
+-- 1. Докажите, что Perm l1 l2 тогда и только тогда, когда Insertion.sort l1 = Insertion.sort l2.
+
+\func perm-sort-equiv {A : Dec} : \Pi (xs ys : List A) -> Perm xs ys <-> (Insertion.sort xs = Insertion.sort ys) =>
+  \lam (xs ys : List A) => (perm2sort xs ys, sort2perm xs ys)
+    \where
+      \func perm2sort {A : Dec} (xs ys : List A) (p : Perm xs ys) : (Insertion.sort xs = Insertion.sort ys) \elim
+        | nil, nil, perm-nil => idp
+        | :: x xs1, :: y ys1, perm-:: p1 p2 => rewrite p1 (pmap (Insertion.sort.insert y) (perm2sort xs1 ys1 p2))
+        | :: x (:: x' xs1), :: y (:: y' ys1), perm-swap p1 p2 p3 => rewrite p1 (rewrite p2 (rewrite p3 (Insertion.sort-perm.insert-comm y' y (Insertion.sort ys1))))
+        | xs1, ys1, perm-trans p1 p2 => rewrite (perm2sort xs1 _ p1) (perm2sort _ ys1 p2)
+      \func sort2perm {A : Dec} (xs ys : List A) (p : (Insertion.sort xs = Insertion.sort ys)) : Perm xs ys =>
+        perm-trans (Insertion.sort-perm xs) (rewrite p (perm-sym ys (Insertion.sort ys) (Insertion.sort-perm ys)))
+      \func perm-sym {A : Dec} (xs ys : List A) (p : Perm xs ys) : Perm ys xs \elim
+        | nil, nil, perm-nil => perm-nil
+        | :: x xs1, :: y ys1, perm-:: p1 p2 => perm-:: (sym p1) (perm-sym xs1 ys1 p2)
+        | :: x (:: x' xs1), :: y (:: y' ys1), perm-swap p1 p2 p3 => perm-swap (sym p2) (sym p1) (sym p3)
+        | xs1, ys1, perm-trans p1 p2 => perm-trans (perm-sym _ _ p2) (perm-sym _ _ p1)
+
+-- 2. Докажите, что спецификация "результат является перестановкой входа и отсортирован" является полной для функции sort.
+
+\func completeness {A : Dec} (sort : List A -> List A) (l : List A) (p : Perm l (sort l)) (s : Sorted (sort l)) : sort l = Insertion.sort l
+  => rewrite ((perm-sort-equiv l (sort l)).1 p) (rewriteI (sort-sorted (sort l) s) idp)
+    \where \func sort-sorted {A : Dec} (xs : List A) (s : Sorted xs) : xs = Insertion.sort xs \elim
+      | nil, sorted-nil => idp
+      | :: x xs1, sorted-cons _x s1 => rewriteI (sort-sorted xs1 s1) (
+        \case \elim xs1, _x \with {
+          | nil, <=-equals p => idp
+          | nil, <=-less _x1 => idp
+          | :: a xs1, <=-equals p =>
+            mcases \with {
+              | inl x<a => contradiction
+              | inr a<=x => idp
+            }
+          | :: a xs1, <=-less _x1 =>
+            mcases \with {
+              | inl x<a => contradiction
+              | inr a<=x => idp
+            }
+        }
+      )
+
+-- 3. Определите факториал через хвостовую рекурсию.
+--    Докажите, что он равен обычному определению факториала.
+
+\func fact (n : Nat) : Nat \elim n
+  | 0 => 1
+  | suc n => (suc n) Nat.* (fact n)
+
+\func factorial (n : Nat) : Nat =>
+  helper-fact n 1
+    \where \func helper-fact (n res : Nat) : Nat \elim n
+      | 0 => res
+      | suc n => (suc n) Nat.* helper-fact n res
+
+\func fact-equiv (n : Nat) : fact n = factorial n
+  | 0 => idp
+  | suc n => rewrite (fact-equiv n) (unfold factorial idp)
+
+-- 4. Закончите определение \instance Monad для Term.
+
+\class Functor (F : \Type -> \Type)
+  | fmap {A B : \Type} (f : A -> B) : F A -> F B
+  | fmap-id {A : \Type} (y : F A) : fmap (\lam (x : A) => x) y = y
+  | fmap-comp {A B C : \Type} (f : A -> B) (g : B -> C) (y : F A)
+  : fmap (\lam x => g (f x)) y = fmap g (fmap f y)
+
+\class Monad \extends Functor
+  | return {A : \Type} : A -> F A
+  | \infixl 1 >>= {A B : \Type} : F A -> (A -> F B) -> F B
+  | >>=-left {A B : \Type} (a : A) (k : A -> F B) : (return a >>= k) = k a
+  | >>=-right {A : \Type} (m : F A) : (m >>= return) = m
+  | >>=-assoc {A B C : \Type} (m : F A) (k : A -> F B) (l : B -> F C) : ((m >>= k) >>= l) = (m >>= (\lam a => k a >>= l))
+  | fmap => {?}
+  | fmap-id => {?}
+  | fmap-comp => {?}
+
+\instance MaybeMonad : Monad Maybe
+  | return => just
+  | >>= m k => maybe nothing k m
+  | >>=-left => {?}
+  | >>=-right => {?}
+  | >>=-assoc => {?}
+
+\func termMap {A B : \Type} (f : A -> B) (t : Term A) : Term B \elim t
+  | var v => var (f v)
+  | unit => unit
+  | app t1 t2 => app (termMap f t1) (termMap f t2)
+  | lam t => lam (termMap (maybe nothing (\lam x => just (f x))) t)
+
+{-
+-- это некорректное определение termMap just
+\func lift {A : \Type} (t : Term A) : Term (Maybe A) \elim t
+  | var v => var (just v)
+  | unit => unit
+  | app t1 t2 => app (termMap just t1) (termMap just t2)
+  | lam t => lam (termMap just t)
+-}
+
+\func liftM {A B : \Type} (k : A -> Term B) (m : Maybe A) : Term (Maybe B)
+  => maybe (var nothing) (\lam a => termMap just (k a)) m
+
+\instance TermMonad : Monad Term
+  | return => var
+  | >>= {A B : \Type} (t : Term A) (k : A -> Term B) : Term B \elim t {
+    | var v => k v
+    | unit => unit
+    | app t1 t2 => app (t1 >>= k) (t2 >>= k)
+    | lam t => lam (t >>= liftM k)
+  }
+  | >>=-left => {?}
+  | >>=-right => {?}
+  | >>=-assoc => {?}
+
+-- 5. Определите отношение многошаговой редукции на Term.
+
+\data Red {V : \Type} (t s : Term V) =>
+  | red0 (t = s)
+  | red1 (Red1 t s)
+  | redN (q : Term V) (Red t q) (Red q s)
+
+-- 6. Стратегия редукции -- это функция, которая каждому терму сопоставляет либо некоторый терм, к которому он редуцируется за 1 шаг, либо доказательство, что таких термов нет.
+--    Определите любую стратегию редукции.
+
+\func strategy {V : \Type} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) => {?}
+
+-- 7. Докажите, что подтермы достижимого терма достижимы.
+
+\func appAccLeft {V : \Type} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t
+  => {?}
+
+\func appAccRight {V : \Type} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t
+  => {?}
+
+\func subLamAcc {V : \Type} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t
+  => {?}
+
+-- 8. Докажите следующую обобщенную лемму о подстановке и выведите из нее обычную версию: если Г, x : A |- b : B и Г |- a : A, то Г |- b[a/x] : B.
+
+\func substLem {U V : \Type} (ctx : U -> Type) (b : Term U) (B : Type) (h : hasType ctx b B)
+               (ctx' : V -> Type) (a : U -> Term V) (h' : \Pi (u : U) -> hasType ctx' (a u) (ctx u))
+  : hasType ctx' (b >>= a) B
+  => {?}
+
+\func substLem1 => {?}
+
+-- 9. Докажите, что если Г |- a : A и Red a a', то Г |- a' : A
+
+\func redLem {V : \Type} {ctx : V -> Type} {a a' : Term V} (r : Red a a') {A : Type} (h : hasType ctx a A)
+  : hasType ctx a' A
+  => {?}
+
+-- Optional
+-- 10. Докажите typeableInterp из лекции
