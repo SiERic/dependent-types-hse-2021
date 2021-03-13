@@ -17,14 +17,14 @@
 \func perm-sort-equiv {A : Dec} : \Pi (xs ys : List A) -> Perm xs ys <-> (Insertion.sort xs = Insertion.sort ys) =>
   \lam (xs ys : List A) => (perm2sort xs ys, sort2perm xs ys)
     \where
-      \func perm2sort {A : Dec} (xs ys : List A) (p : Perm xs ys) : (Insertion.sort xs = Insertion.sort ys) \elim
+      \func perm2sort {A : Dec} (xs ys : List A) (p : Perm xs ys) : (Insertion.sort xs = Insertion.sort ys)
         | nil, nil, perm-nil => idp
         | :: x xs1, :: y ys1, perm-:: p1 p2 => rewrite p1 (pmap (Insertion.sort.insert y) (perm2sort xs1 ys1 p2))
         | :: x (:: x' xs1), :: y (:: y' ys1), perm-swap p1 p2 p3 => rewrite p1 (rewrite p2 (rewrite p3 (Insertion.sort-perm.insert-comm y' y (Insertion.sort ys1))))
         | xs1, ys1, perm-trans p1 p2 => rewrite (perm2sort xs1 _ p1) (perm2sort _ ys1 p2)
       \func sort2perm {A : Dec} (xs ys : List A) (p : (Insertion.sort xs = Insertion.sort ys)) : Perm xs ys =>
         perm-trans (Insertion.sort-perm xs) (rewrite p (perm-sym ys (Insertion.sort ys) (Insertion.sort-perm ys)))
-      \func perm-sym {A : Dec} (xs ys : List A) (p : Perm xs ys) : Perm ys xs \elim
+      \func perm-sym {A : Dec} (xs ys : List A) (p : Perm xs ys) : Perm ys xs
         | nil, nil, perm-nil => perm-nil
         | :: x xs1, :: y ys1, perm-:: p1 p2 => perm-:: (sym p1) (perm-sym xs1 ys1 p2)
         | :: x (:: x' xs1), :: y (:: y' ys1), perm-swap p1 p2 p3 => perm-swap (sym p2) (sym p1) (sym p3)
@@ -34,7 +34,7 @@
 
 \func completeness {A : Dec} (sort : List A -> List A) (l : List A) (p : Perm l (sort l)) (s : Sorted (sort l)) : sort l = Insertion.sort l
   => rewrite ((perm-sort-equiv l (sort l)).1 p) (rewriteI (sort-sorted (sort l) s) idp)
-    \where \func sort-sorted {A : Dec} (xs : List A) (s : Sorted xs) : xs = Insertion.sort xs \elim
+    \where \func sort-sorted {A : Dec} (xs : List A) (s : Sorted xs) : xs = Insertion.sort xs
       | nil, sorted-nil => idp
       | :: x xs1, sorted-cons _x s1 => rewriteI (sort-sorted xs1 s1) (
         \case \elim xs1, _x \with {
