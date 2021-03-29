@@ -1,0 +1,134 @@
+\import Logic.Meta
+\import lect07
+\import lect09
+\import Utils \hiding (<=-refl, transport)
+\import Paths (transport,inv)
+\import Paths.Meta
+
+-- 1. Пусть f : A -> B и g : B -> C ─ некоторые функции.
+--    Докажите, что если f и g инъективны, то g `o` f также инъективна.
+--    Докажите, что если g `o` f инъективна, то f также инъективна.
+
+-- Композиция функций
+\func \fixr 9 o {A B C : \Type} (g : B -> C) (f : A -> B) => \lam a => g (f a)
+
+\func o-inj {A B C : \Type} (f : A -> B) (g : B -> C) (p : isInj f) (q : isInj g) : isInj (g `o` f) =>
+  \lam a a' r => p a a' (q (f a) (f a') r)
+
+\func o-inj' {A B C : \Type} (f : A -> B) (g : B -> C) (p : isInj (g `o` f)) : isInj f =>
+  \lam a a' r => p a a' (pmap g r)
+
+-- 2. Определите предикат "делится на 3 или на 5" так, чтобы он возвращал утверждения.
+--    Докажите, что MultipleOf3Or5 вкладывается в ℕ.
+
+\func isMultipleOf3Or5 (n : Nat) : \Type \elim n
+  | 0 => \Sigma
+  | 1 => Empty
+  | 2 => Empty
+  | 3 => \Sigma
+  | 4 => Empty
+  | 5 => \Sigma
+  | 6 => \Sigma
+  | 7 => Empty
+  | 8 => Empty
+  | 9 => \Sigma
+  | 10 => \Sigma
+  | 11 => Empty
+  | 12 => \Sigma
+  | 13 => Empty
+  | 14 => Empty
+  | suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc (suc n)))))))))))))) => isMultipleOf3Or5 n
+
+\func isMultipleOf3Or5-isProp (n : Nat) : isProp (isMultipleOf3Or5 n) =>
+  \lam x y => ext
+
+\func MultipleOf3Or5 => \Sigma (n : Nat) (isMultipleOf3Or5 n)
+
+\func Mul-inc (m : MultipleOf3Or5) => m.1
+
+\func Mul-inc-isInj : isInj Mul-inc =>
+  \lam a a' p => sigmaEq isMultipleOf3Or5 a a' p (isMultipleOf3Or5-isProp a'.1 (transport isMultipleOf3Or5 p a.2) a'.2)
+
+-- 3. Мы будем говорить, что тип A тривиален, если существует элемент в A, такой что любой другой элемент в A равен ему.
+--    Докажите, что тип A тривиален тогда и только тогда, когда A является утверждением и A населен.
+
+\func isTriv (A : \Type) => \Sigma (a : A) (\Pi (a' : A) -> a = a')
+
+\func \infix 1 <-> (A B : \Type) => \Sigma (A -> B) (B -> A)
+
+\func isTriv-lem (A : \Type) : isTriv A <-> (\Sigma (isProp A) A) =>
+  (triv2prop, prop2triv)
+  \where
+    \func triv2prop {A : \Type} (t : isTriv A) : \Sigma (isProp A) A \elim t
+      | (a, p) => (\lam a a' => sym (p a) *> p a', a)
+    \func prop2triv {A : \Type} (p : \Sigma (isProp A) A ) : isTriv A \elim p
+      | (p, a) => (a, p a)
+
+-- 4. Докажите, что Either не является утверждением в общем случаем.
+
+\func Either-isProp (p : \Pi {A B : \Type} (pA : isProp A) (pB : isProp B) -> isProp (Either A B)) : Empty =>
+  \let
+    | q => p Unit-isProp Unit-isProp
+    | q' => q (Either.inl ()) (Either.inr ())
+  \in
+    contradiction
+
+-- 5. Докажите, что LessOrEq является предикатом.
+
+\data LessOrEq (n m : Nat) : \Set0 \with
+  | 0, m => z<=n
+  | suc n, suc m => s<=s (LessOrEq n m)
+
+\func LessOrEq-isProp {n m : Nat} : isProp (LessOrEq n m) =>
+  \lam a a' => less-helper a a'
+  \where \func less-helper {n m : Nat} (a a' : LessOrEq n m) : a = a'
+    | {0}, z<=n, z<=n => idp
+    | {suc n1}, {suc m1}, s<=s a1, s<=s a'1 => pmap s<=s (less-helper a1 a'1)
+
+-- 6. Докажте, что ReflClosure LessOrEq не является предикатом, а ReflClosure (\lam x y => T (x < y)) является.
+
+\func \infix 4 < (n m : Nat) : Bool
+  | _, 0 => false
+  | 0, suc _ => true
+  | suc n, suc m => n < m
+
+\data ReflClosure (R : Nat -> Nat -> \Type) (x y : Nat)
+  | refl (x = y)
+  | inc (R x y)
+
+\func ReflClosure_<-isProp (n m : Nat) : isProp (ReflClosure (\lam x y => T (x < y)) n m) => {?}
+
+\func ReflClosure_<=-isNotProp (p : \Pi (n m : Nat) -> isProp (ReflClosure LessOrEq n m)) : Empty => {?}
+
+-- 7. Докажите, что если тип A вкладывается в тип B и B является утверждением, то и A является утверждением.
+
+\func sub-isProp {A B : \Type} (f : A -> B) (p : isInj f) (q : isProp B) : isProp A =>
+  \lam a a' => p a a' (q (f a) (f a'))
+
+-- 8. Докажите, что тип с разрешимым равенством являетя множеством.
+
+\func Dec-isSet {A : \Type} (dec : \Pi (x y : A) -> Decide (x = y)) : isSet A
+  => {?}
+
+-- 9. Если A и B являются множествами, то A `Or` B тоже является множеством.
+
+\data \fixr 2 Or (A B : \Type)
+  | inl A
+  | inr B
+
+\func or-isSet {A B : \Type} (p : isSet A) (q : isSet B) : isSet (Or A B) => {?}
+
+-- 10. Если B x является множеством, то \Pi (x : A) -> B x тоже является множеством.
+
+\func pi-isSet {A : \Type} (B : A -> \Type) (p : \Pi (x : A) -> isSet (B x)) : isSet (\Pi (x : A) -> B x) => {?}
+
+-- 11. Докажите, что если A является множеством, то List A также им является.
+
+\func List-isSet {A : \Type} (pA : isSet A) : isSet (List A)
+  => {?}
+
+-- Optional:
+-- 12. Докажите, что n-типы замкнуты относительно образования \Pi-типов.
+--     Hint: Доказательство по индукции. Для случая suc n нужно доказать, что если f,g : \Pi (x : A) -> B x, то f = g эквивалентно \Pi (x : A) -> f x = g x.
+
+\func levelPi {A : \Type} (B : A -> \Type) (n : Nat) (p : \Pi (x : A) -> B x `hasLevel` n) : (\Pi (x : A) -> B x) `hasLevel` n => {?}
